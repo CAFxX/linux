@@ -11,6 +11,14 @@ config IOSCHED_NOOP
 	  memory devices, and specialised software or hardware environments
 	  that do their own scheduling and require only minimal assistance from
 	  the kernel.
+	  
+config IOSCHED_PNOOP
+	tristate "Priority no-op I/O scheduler"
+	default y
+	---help---
+	  The ioprio-no-op I/O scheduler is similar to the no-op I/O scheduler.
+	  The only difference is that it respects I/O priorities set with
+	  ioprio_set. 
 
 config IOSCHED_DEADLINE
 	tristate "Deadline I/O scheduler"
