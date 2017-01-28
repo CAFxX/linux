@@ -16,9 +16,8 @@ config IOSCHED_PNOOP
 	tristate "Priority no-op I/O scheduler"
 	default y
 	---help---
-	  The ioprio-no-op I/O scheduler is similar to the no-op I/O scheduler.
-	  The only difference is that it respects I/O priorities set with
-	  ioprio_set. 
+	  The priority no-op I/O scheduler behaves as the no-op I/O scheduler with
+	  the difference that, life CFQ, it respects I/O priorities.
 
 config IOSCHED_DEADLINE
 	tristate "Deadline I/O scheduler"
