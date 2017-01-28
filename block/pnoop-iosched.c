@@ -8,10 +8,14 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/init.h>
+#include <linux/kernel.h>
+
+#define PNOOP_QUEUES (8+1+1)
+#define PNOOP_QUEUE_BE 8
+#define PNOOP_QUEUE_IDLE 9
 
 struct pnoop_data {
-	struct list_head queue;
-	struct list_head queue_idle;
+	struct list_head queues[PNOOP_QUEUES];
 };
 
 static struct list_head *
@@ -20,10 +24,13 @@ pnoop_queue_for_request(struct request_queue *q, struct request *rq)
 	struct pnoop_data *nd = q->elevator->elevator_data;
 
 	switch (IOPRIO_PRIO_CLASS(rq->ioprio)) {
-	case IOPRIO_CLASS_IDLE:
-		return &nd->queue_idle;
+	case IOPRIO_CLASS_RT:
+		return &nd->queues[clamp(IOPRIO_PRIO_DATA(rq->ioprio), 0, 7)];
+	case IOPRIO_CLASS_BE:
 	default:
-		return &nd->queue;
+		return &nd->queues[PNOOP_QUEUE_BE];
+	case IOPRIO_CLASS_IDLE:
+		return &nd->queues[PNOOP_QUEUE_IDLE];
 	}
 }
 
@@ -36,11 +43,11 @@ static void pnoop_merged_requests(struct request_queue *q, struct request *rq,
 static int pnoop_dispatch(struct request_queue *q, int force)
 {
 	struct pnoop_data *nd = q->elevator->elevator_data;
-	struct request *rq;
+	struct request *rq = NULL;
+	int i;
 
-	rq = list_first_entry_or_null(&nd->queue, struct request, queuelist);
-	if (!rq)
-		rq = list_first_entry_or_null(&nd->queue_idle, struct request, 
+	for (i=0; i<PNOOP_QUEUES && !rq; i++)
+		rq = list_first_entry_or_null(&nd->queues[i], struct request, 
 						queuelist);
 
 	if (rq) {
@@ -76,6 +83,7 @@ static int pnoop_init_queue(struct request_queue *q, struct elevator_type *e)
 {
 	struct pnoop_data *nd;
 	struct elevator_queue *eq;
+	int i;
 
 	eq = elevator_alloc(q, e);
 	if (!eq)
@@ -88,8 +96,8 @@ static int pnoop_init_queue(struct request_queue *q, struct elevator_type *e)
 	}
 	eq->elevator_data = nd;
 
-	INIT_LIST_HEAD(&nd->queue);
-	INIT_LIST_HEAD(&nd->queue_idle);
+	for (i=0; i<PNOOP_QUEUES; i++)
+		INIT_LIST_HEAD(&nd->queues[i]);
 
 	spin_lock_irq(q->queue_lock);
 	q->elevator = eq;
@@ -100,9 +108,11 @@ static int pnoop_init_queue(struct request_queue *q, struct elevator_type *e)
 static void pnoop_exit_queue(struct elevator_queue *e)
 {
 	struct pnoop_data *nd = e->elevator_data;
+	int i;
+	
+	for (i=0; i<PNOOP_QUEUES; i++)
+		BUG_ON(!list_empty(&nd->queues[i]));
 
-	BUG_ON(!list_empty(&nd->queue));
-	BUG_ON(!list_empty(&nd->queue_idle));
 	kfree(nd);
 }
 
