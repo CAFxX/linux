@@ -9,6 +9,8 @@
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/ratelimit.h>
+#include <linux/printk.h>
 
 #define PNOOP_QUEUES (8+1+1)
 #define PNOOP_QUEUE_BE 8
@@ -16,28 +18,40 @@
 
 struct pnoop_data {
 	struct list_head queues[PNOOP_QUEUES];
+	uint64_t enq[PNOOP_QUEUES];
+	uint64_t deq[PNOOP_QUEUES];
 };
+
+static int
+pnoop_queueid_for_request(struct request_queue *q, struct request *rq)
+{
+	unsigned long rq_ioprio = req_get_ioprio(rq);
+
+	switch (IOPRIO_PRIO_CLASS(rq_ioprio)) {
+	case IOPRIO_CLASS_RT:
+		return clamp(IOPRIO_PRIO_DATA(rq_ioprio), 0UL, 7UL);
+	case IOPRIO_CLASS_BE:
+	default:
+		return PNOOP_QUEUE_BE;
+	case IOPRIO_CLASS_IDLE:
+		return PNOOP_QUEUE_IDLE;
+	}
+}
 
 static struct list_head *
 pnoop_queue_for_request(struct request_queue *q, struct request *rq)
 {
 	struct pnoop_data *nd = q->elevator->elevator_data;
-	unsigned short rq_ioprio = req_get_ioprio(rq);
 
-	switch (IOPRIO_PRIO_CLASS(rq_ioprio)) {
-	case IOPRIO_CLASS_RT:
-		return &nd->queues[clamp(IOPRIO_PRIO_DATA(rq_ioprio), 0, 7)];
-	case IOPRIO_CLASS_BE:
-	default:
-		return &nd->queues[PNOOP_QUEUE_BE];
-	case IOPRIO_CLASS_IDLE:
-		return &nd->queues[PNOOP_QUEUE_IDLE];
-	}
+	return &nd->queues[pnoop_queueid_for_request(q, rq)];
 }
 
 static void pnoop_merged_requests(struct request_queue *q, struct request *rq,
 				 struct request *next)
 {
+	struct pnoop_data *nd = q->elevator->elevator_data;
+
+	nd->deq[pnoop_queueid_for_request(q, rq)]++;
 	list_del_init(&next->queuelist);
 }
 
@@ -48,20 +62,38 @@ static int pnoop_dispatch(struct request_queue *q, int force)
 	int i;
 
 	for (i=0; i<PNOOP_QUEUES && !rq; i++)
-		rq = list_first_entry_or_null(&nd->queues[i], struct request, 
+		rq = list_first_entry_or_null(&nd->queues[i], struct request,
 						queuelist);
 
 	if (rq) {
 		list_del_init(&rq->queuelist);
 		elv_dispatch_sort(q, rq);
-		return 1;
+		nd->deq[i-1]++;
 	}
-	return 0;
+	
+	#define __PNF(x) x "[%llu/%llu] "
+	#define __PNS(x) nd->enq[x], nd->enq[x] - nd->deq[x] 
+	#undef DEFAULT_RATELIMIT_INTERVAL
+	#undef DEFAULT_RATELIMIT_BURST
+	#define DEFAULT_RATELIMIT_INTERVAL (1*HZ)
+	#define DEFAULT_RATELIMIT_BURST 1
+	printk_ratelimited("pnoop: "
+			__PNF("RT0") __PNF("RT1") __PNF("RT2") __PNF("RT3") 
+			__PNF("RT4") __PNF("RT5") __PNF("RT6") __PNF("RT7") 
+			__PNF("BE") __PNF("IDLE"), 
+			__PNS(0), __PNS(1), __PNS(2), __PNS(3),
+			__PNS(4), __PNS(5), __PNS(6), __PNS(7),
+			__PNS(8), __PNS(9));
+				
+	return rq ? 1 : 0;
 }
 
 static void pnoop_add_request(struct request_queue *q, struct request *rq)
 {
+	struct pnoop_data *nd = q->elevator->elevator_data;
+
 	list_add_tail(&rq->queuelist, pnoop_queue_for_request(q, rq));
+	nd->enq[pnoop_queueid_for_request(q, rq)]++;
 }
 
 static struct request *
@@ -99,7 +131,8 @@ static int pnoop_init_queue(struct request_queue *q, struct elevator_type *e)
 
 	for (i=0; i<PNOOP_QUEUES; i++)
 		INIT_LIST_HEAD(&nd->queues[i]);
-
+	for (i=0; i<PNOOP_QUEUES; i++)
+		nd->enq[i] = nd->deq[i] = 0;
 	spin_lock_irq(q->queue_lock);
 	q->elevator = eq;
 	spin_unlock_irq(q->queue_lock);
