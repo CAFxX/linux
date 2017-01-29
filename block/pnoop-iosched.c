@@ -119,6 +119,7 @@ static int pnoop_init_queue(struct request_queue *q, struct elevator_type *e)
 
 	for (i=0; i<PNOOP_NUM_QUEUES; i++)
 		INIT_LIST_HEAD(&nd->queues[i]);
+	nd->state = 0;
 
 	spin_lock_irq(q->queue_lock);
 	q->elevator = eq;
