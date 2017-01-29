@@ -22,10 +22,11 @@ static struct list_head *
 pnoop_queue_for_request(struct request_queue *q, struct request *rq)
 {
 	struct pnoop_data *nd = q->elevator->elevator_data;
+	unsigned short rq_ioprio = req_get_ioprio(rq);
 
-	switch (IOPRIO_PRIO_CLASS(rq->ioprio)) {
+	switch (IOPRIO_PRIO_CLASS(rq_ioprio)) {
 	case IOPRIO_CLASS_RT:
-		return &nd->queues[clamp(IOPRIO_PRIO_DATA(rq->ioprio), 0, 7)];
+		return &nd->queues[clamp(IOPRIO_PRIO_DATA(rq_ioprio), 0, 7)];
 	case IOPRIO_CLASS_BE:
 	default:
 		return &nd->queues[PNOOP_QUEUE_BE];
