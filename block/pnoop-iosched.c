@@ -29,9 +29,9 @@ pnoop_rand(struct pnoop_data *nd) {
 
 static int
 pnoop_stochastic_prio_be(struct pnoop_data *nd, unsigned prio) {
-	prio = clamp(prio, 0UL, 7UL);
+	unsigned mask = ( 2 << clamp(prio, 0UL, 7UL) ) - 1;
 	for (i=0; i<PNOOP_NUM_QUEUES_BE-1; i++)
-		if (pnoop_rand(nd) & ((2<<prio)-1))
+		if (pnoop_rand(nd) & mask == 0)
 			return i;
 	return PNOOP_NUM_QUEUES_BE-1;
 }
