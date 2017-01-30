@@ -45,18 +45,23 @@ static int pnoop_dispatch(struct request_queue *q, int force)
 {
 	struct pnoop_data *nd = q->elevator->elevator_data;
 	struct request *rq = NULL;
-	int i;
+	unsigned i, dispatched=0;
 
-	for (i=0; i<PNOOP_QUEUES && !rq; i++)
-		rq = list_first_entry_or_null(&nd->queues[i], struct request, 
-						queuelist);
+	for (i=0; i<PNOOP_QUEUES; i++) {
+	flush:
+		rq = list_first_entry_or_null(&nd->queues[i], 
+					      struct request, 
+					      queuelist);
+		if (!rq) continue;
 
-	if (rq) {
 		list_del_init(&rq->queuelist);
 		elv_dispatch_sort(q, rq);
-		return 1;
+		dispatched++;
+
+		force ? goto flush : break;
 	}
-	return 0;
+
+	return dispatched;
 }
 
 static void pnoop_add_request(struct request_queue *q, struct request *rq)
