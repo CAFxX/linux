@@ -52,13 +52,12 @@ static int pnoop_dispatch(struct request_queue *q, int force)
 		rq = list_first_entry_or_null(&nd->queues[i], 
 					      struct request, 
 					      queuelist);
-		if (!rq) continue;
-
-		list_del_init(&rq->queuelist);
-		elv_dispatch_sort(q, rq);
-		dispatched++;
-
-		force ? goto flush : break;
+		if (rq) {
+			list_del_init(&rq->queuelist);
+			elv_dispatch_sort(q, rq);
+			dispatched++;
+			force ? goto flush : break;
+		}
 	}
 
 	return dispatched;
