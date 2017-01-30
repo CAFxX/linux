@@ -51,7 +51,7 @@ static void pnoop_merged_requests(struct request_queue *q, struct request *rq,
 {
 	struct pnoop_data *nd = q->elevator->elevator_data;
 
-	nd->deq[pnoop_queueid_for_request(q, rq)]++;
+	nd->deq[pnoop_queueid_for_request(q, next)]++;
 	list_del_init(&next->queuelist);
 }
 
