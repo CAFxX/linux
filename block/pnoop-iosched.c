@@ -16,23 +16,32 @@
 
 struct pnoop_data {
 	struct list_head queues[PNOOP_QUEUES];
+	int start;
+	int end;
 };
+
+static int
+pnoop_queue_id_for_request(struct request_queue *q, struct request *rq)
+{
+	unsigned short rq_ioprio = req_get_ioprio(rq);
+
+	switch (IOPRIO_PRIO_CLASS(rq_ioprio)) {
+	case IOPRIO_CLASS_RT:
+		return clamp(IOPRIO_PRIO_DATA(rq_ioprio), 0, 7);
+	case IOPRIO_CLASS_BE:
+	default:
+		return PNOOP_QUEUE_BE;
+	case IOPRIO_CLASS_IDLE:
+		return PNOOP_QUEUE_IDLE;
+	}
+}
 
 static struct list_head *
 pnoop_queue_for_request(struct request_queue *q, struct request *rq)
 {
 	struct pnoop_data *nd = q->elevator->elevator_data;
-	unsigned short rq_ioprio = req_get_ioprio(rq);
 
-	switch (IOPRIO_PRIO_CLASS(rq_ioprio)) {
-	case IOPRIO_CLASS_RT:
-		return &nd->queues[clamp(IOPRIO_PRIO_DATA(rq_ioprio), 0, 7)];
-	case IOPRIO_CLASS_BE:
-	default:
-		return &nd->queues[PNOOP_QUEUE_BE];
-	case IOPRIO_CLASS_IDLE:
-		return &nd->queues[PNOOP_QUEUE_IDLE];
-	}
+	return &nd->queues[pnoop_queue_id_for_request(q, rq)];
 }
 
 static void pnoop_merged_requests(struct request_queue *q, struct request *rq,
@@ -47,21 +56,36 @@ static int pnoop_dispatch(struct request_queue *q, int force)
 	struct request *rq = NULL;
 	int i;
 
-	for (i=0; i<PNOOP_QUEUES && !rq; i++)
+	for (i=nd->start; i<nd->end && !rq; i++) {
 		rq = list_first_entry_or_null(&nd->queues[i], struct request, 
 						queuelist);
-
-	if (rq) {
-		list_del_init(&rq->queuelist);
-		elv_dispatch_sort(q, rq);
-		return 1;
+		if (rq) {
+			list_del_init(&rq->queuelist);
+			elv_dispatch_sort(q, rq);
+			return 1;
+		} else {
+			nd->start++;
+		}
 	}
+
 	return 0;
 }
 
 static void pnoop_add_request(struct request_queue *q, struct request *rq)
 {
+	struct pnoop_data *nd = q->elevator->elevator_data;
+
 	list_add_tail(&rq->queuelist, pnoop_queue_for_request(q, rq));
+	
+	int q = pnoop_queue_id_for_request(q, rq);
+	if nd->start == nd->end {
+		nd->start = q;
+		nd->end = q+1;
+	} else if nd->start > q {
+		nd->start = q;
+	} else if nd->end <= q {
+		nd->end = q+1;
+	}	
 }
 
 static struct request *
@@ -99,6 +123,7 @@ static int pnoop_init_queue(struct request_queue *q, struct elevator_type *e)
 
 	for (i=0; i<PNOOP_QUEUES; i++)
 		INIT_LIST_HEAD(&nd->queues[i]);
+	nd->start = nd->end = 0;
 
 	spin_lock_irq(q->queue_lock);
 	q->elevator = eq;
