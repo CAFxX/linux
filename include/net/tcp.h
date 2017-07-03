@@ -148,9 +148,10 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 					                 */
 #define TCP_REO_TIMEOUT_MIN	(2000) /* Min RACK reordering timeout in usec */
 
-#define TCP_KEEPALIVE_TIME	(120*60*HZ)	/* two hours */
-#define TCP_KEEPALIVE_PROBES	9		/* Max of 9 keepalive probes	*/
-#define TCP_KEEPALIVE_INTVL	(75*HZ)
+#define TCP_KEEPALIVE_TIME		(120*60*HZ)	/* two hours */
+#define TCP_KEEPALIVE_PROBES		9		/* Max of 9 keepalive probes	*/
+#define TCP_KEEPALIVE_INTVL		(75*HZ)
+#define TCP_KEEPALIVE_DEFAULT_ENABLE	0		/* keepalive disabled by default */
 
 #define MAX_TCP_KEEPIDLE	32767
 #define MAX_TCP_KEEPINTVL	32767

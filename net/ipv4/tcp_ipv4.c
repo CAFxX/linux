@@ -1838,6 +1838,7 @@ static const struct tcp_sock_af_ops tcp_sock_ipv4_specific = {
 static int tcp_v4_init_sock(struct sock *sk)
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);
+	int ka_enable;
 
 	tcp_init_sock(sk);
 
@@ -1846,6 +1847,10 @@ static int tcp_v4_init_sock(struct sock *sk)
 #ifdef CONFIG_TCP_MD5SIG
 	tcp_sk(sk)->af_specific = &tcp_sock_ipv4_specific;
 #endif
+
+	/* Enable keepalive if requested by sysctl */
+	ka_enable = sock_net(sk)->ipv4.sysctl_tcp_keepalive_default_enable;
+	tcp_set_keepalive(sk, ka_enable);
 
 	return 0;
 }
@@ -2446,6 +2451,7 @@ static int __net_init tcp_sk_init(struct net *net)
 	net->ipv4.sysctl_tcp_keepalive_time = TCP_KEEPALIVE_TIME;
 	net->ipv4.sysctl_tcp_keepalive_probes = TCP_KEEPALIVE_PROBES;
 	net->ipv4.sysctl_tcp_keepalive_intvl = TCP_KEEPALIVE_INTVL;
+	net->ipv4.sysctl_tcp_keepalive_default_enable = TCP_KEEPALIVE_DEFAULT_ENABLE;
 
 	net->ipv4.sysctl_tcp_syn_retries = TCP_SYN_RETRIES;
 	net->ipv4.sysctl_tcp_synack_retries = TCP_SYNACK_RETRIES;

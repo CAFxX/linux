@@ -354,6 +354,7 @@ static const struct bin_table bin_net_ipv4_table[] = {
 	{ CTL_INT,	NET_IPV4_TCP_KEEPALIVE_TIME,		"tcp_keepalive_time" },
 	{ CTL_INT,	NET_IPV4_TCP_KEEPALIVE_PROBES,		"tcp_keepalive_probes" },
 	{ CTL_INT,	NET_IPV4_TCP_KEEPALIVE_INTVL,		"tcp_keepalive_intvl" },
+	{ CTL_INT,	NET_IPV4_TCP_KEEPALIVE_DEFAULT_ENABLE,	"tcp_keepalive_default_enable" },
 	{ CTL_INT,	NET_IPV4_TCP_RETRIES1,			"tcp_retries1" },
 	{ CTL_INT,	NET_IPV4_TCP_RETRIES2,			"tcp_retries2" },
 	{ CTL_INT,	NET_IPV4_TCP_FIN_TIMEOUT,		"tcp_fin_timeout" },
